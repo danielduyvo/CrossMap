@@ -9,7 +9,7 @@ from cmmodule.utils import update_chromID,revcomp_DNA
 from cmmodule.utils import map_coordinates
 from cmmodule.meta_data import __version__
 
-def crossmap_vcf_file(mapping, infile, outfile, liftoverfile, refgenome, noCompAllele = False, compress = False, cstyle = 'a'):
+def crossmap_vcf_file(mapping, infile, outfile, liftoverfile, refgenome, onlyChangeCoord = False, noCompAllele = False, compress = False, cstyle = 'a'):
 	'''
 	Convert genome coordinates in VCF format.
 
@@ -34,6 +34,11 @@ def crossmap_vcf_file(mapping, infile, outfile, liftoverfile, refgenome, noCompA
 	refgenome : file
 		The genome sequence file of 'target' assembly in FASTA format.
 
+	onlyChangeCoord : bool
+		A logical value indicates if CrossMap will only change the genomic coordinates
+		(and reverse complement alleles if appropriate). If False, the ref_allele will be
+		set to the reference allele in the target genome. Only SNPs will be mapped.
+
 	noCompAllele : bool
 		A logical value indicates whether to compare ref_allele to alt_allele after
 		liftover. If True, the variant will be marked as "unmap" if
@@ -50,6 +55,8 @@ def crossmap_vcf_file(mapping, infile, outfile, liftoverfile, refgenome, noCompA
 		logging.info("Keep variants [reference_allele == alternative_allele] ...")
 	else:
 		logging.info("Filter out variants [reference_allele == alternative_allele] ...")
+	if onlyChangeCoord:
+		logging.info("Only genomic coordinates will be changed, will not adjust reference allele (Only available for SNPs) ...")
 
 	#index refegenome file if it hasn't been done
 	if not os.path.exists(refgenome + '.fai'):
@@ -151,7 +158,15 @@ def crossmap_vcf_file(mapping, infile, outfile, liftoverfile, refgenome, noCompA
 				# update ref allele
 				target_chr = update_chromID(refFasta.references[0], target_chr)
 				try:
-					fields[3] = refFasta.fetch(target_chr,target_start,target_end).upper()
+					if onlyChangeCoord:
+						if len(fields[3]) != 1:
+							print (line + "\tFail(INS/DEL)", file=UNMAP)
+							fail += 1
+							continue
+						if a[1][3] == '-':
+							fields[3] = revcomp_DNA(fields[3], True)
+					else:
+						fields[3] = refFasta.fetch(target_chr,target_start,target_end).upper()
 				except:
 					print (line + "\tFail(KeyError)", file=UNMAP)
 					fail += 1
@@ -162,13 +177,20 @@ def crossmap_vcf_file(mapping, infile, outfile, liftoverfile, refgenome, noCompA
 				ref_allele = fields[3]
 				alt_alleles = fields[4].split(',')
 				alt_alleles_updated = []
+				is_ins_del = False
 				for alt_allele in alt_alleles:
 					if len(ref_allele) != len(alt_allele):
 						tmp = ref_allele[0] + alt_allele[1:] #replace the 1st nucleotide of ALT
 						alt_alleles_updated.append(tmp)
+						is_ins_del = True
 					else:
 						alt_alleles_updated.append(alt_allele)
 				fields[4] = ','.join(alt_alleles_updated)
+				if onlyChangeCoord:
+					if is_ins_del:
+						print (line + "\tFail(INS/DEL)", file=UNMAP)
+						fail += 1
+						continue
 
 				# update END if any
 				fields[7] = re.sub('END\=\d+','END='+str(target_end),fields[7])

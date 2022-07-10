@@ -185,6 +185,8 @@ if __name__ == '__main__':
 		help='Chromosome sequences of target assembly in FASTA (https://en.wikipedia.org/wiki/FASTA_format) format.')
 	parser_vcf.add_argument("out_vcf", type=str, help ='Output VCF file.')
 	parser_vcf.add_argument('--chromid', type=str, choices=['a', 's', 'l'], dest="cstyle", default = 'a', help=chromid_help)
+	parser_vcf.add_argument("--only-change-coord", action="store_true",dest="only_change_coord",
+		help="If set, CrossMap will only change the genomic coordinates and (reverse complement the alleles if appropriate), CrossMap will NOT change the reference allele if it is different from the target genomes's reference allele. Only supports SNPs currently.")
 	parser_vcf.add_argument("--no-comp-alleles", action="store_true",dest="no_comp_alleles",
 		help="If set, CrossMap does NOT check if the reference allele is different from the alternate allele.")
 	parser_vcf.add_argument("--compress", action="store_true",dest="compression",
@@ -316,7 +318,7 @@ if __name__ == '__main__':
 			if args.no_comp_alleles is None:
 				args.no_comp_alleles = False
 			(mapTree, targetChromSizes, sourceChromSizes) = read_chain_file(chain_file)
-			crossmap_vcf_file(mapping = mapTree, infile= in_file, outfile = out_file, liftoverfile = chain_file, refgenome = genome_file, noCompAllele = args.no_comp_alleles, compress = args.compression, cstyle = args.cstyle)
+			crossmap_vcf_file(mapping = mapTree, infile= in_file, outfile = out_file, liftoverfile = chain_file, refgenome = genome_file, onlyChangeCoord = args.only_change_coord, noCompAllele = args.no_comp_alleles, compress = args.compression, cstyle = args.cstyle)
 
 		elif command == 'gvcf':
 			chain_file = args.chain
